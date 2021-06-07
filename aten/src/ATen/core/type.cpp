@@ -113,9 +113,16 @@ std::ostream& operator<<(std::ostream & out, const Type & t) {
       if(i > 0)
         out << ", ";
       if (tup->schema()) {
-        out << tup->schema()->arguments()[i].name() << " : ";
+        auto arg = tup->schema()->arguments()[i];
+        out << arg.name() << " : ";
+        out << *(tup->elements()[i]);
+        if (arg.default_value()) {
+          out << " = " << *arg.default_value();
+        }
       }
-      out << *(tup->elements()[i]);
+      else {
+        out << *(tup->elements()[i]);
+      }
     }
     out << ")";
   } else if (t.kind() == TypeKind::FunctionType) {
@@ -742,13 +749,30 @@ TupleTypePtr TupleType::createNamed(
     const c10::optional<c10::QualifiedName>& qualName,
     const std::vector<std::string>& field_names,
     const std::vector<TypePtr>& field_types) {
-  TORCH_INTERNAL_ASSERT(field_names.size() == field_types.size());
+      std::vector<std::pair<std::string, IValue>> fields;
+      for (size_t i = 0; i < field_names.size(); ++i) {
+        fields.emplace_back(std::pair<std::string, IValue>(field_names[i], IValue()));
+      }
+      return TupleType::createNamed(qualName, fields, field_types);
+    }
+
+
+TupleTypePtr TupleType::createNamed(
+    const c10::optional<c10::QualifiedName>& qualName,
+    const std::vector<std::pair<std::string, IValue>>& fields,
+    const std::vector<TypePtr>& field_types) {
+  TORCH_INTERNAL_ASSERT(fields.size() == field_types.size());
   std::vector<Argument> arguments;
-  for (size_t i = 0; i < field_names.size(); ++i) {
+  for (size_t i = 0; i < fields.size(); ++i) {
+    TORCH_CHECK(fields[i].second.tagKind() != "Tensor", "Tensors are "
+                "not supported as default NamedTuple fields. Their "
+                "mutability could lead to potential memory aliasing "
+                "problems");
     arguments.emplace_back(
-        /*name=*/field_names[i],
+        /*name=*/fields[i].first,
         /*type=*/field_types[i],
-        /*N=*/i);
+        /*N=*/i,
+        /*default_value=*/fields[i].second);
   }
 
   auto schema = std::make_shared<FunctionSchema>(
