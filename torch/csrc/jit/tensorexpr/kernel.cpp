@@ -3038,7 +3038,7 @@ void TensorExprKernel::genInputDebugNames() {
   std::unordered_set<std::string> name_set;
   std::unordered_map<const torch::jit::Value*, std::string> value_to_name;
   for (const torch::jit::Value* input : graph_->inputs()) {
-    std::string sanitized_name = sanitizeName(input->debugName());
+    std::string sanitized_name = sanitizeName(input->displayName());
     // we could get fancier here, but name conflict is extremely unlikely
     while (name_set.count(sanitized_name)) {
       // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
@@ -3058,7 +3058,7 @@ Tensor* TensorExprKernel::bindInput(const torch::jit::Value* input) {
       auto tt = input->type()->cast<TensorType>();
       if (!input->isCompleteTensor()) {
         std::string msg = std::string("Shapes for input '%") +
-            input->debugName() + "' are unknown";
+            input->displayName() + "' are unknown";
         throw malformed_input(msg);
       }
       Placeholder inBuffer(
@@ -3138,8 +3138,8 @@ Tensor* TensorExprKernel::convertOutputToCorrectStrides(torch::jit::Value* v) {
 
   // No shape info is present in the graph
   if (!tt->sizes().concrete_sizes()) {
-    std::string msg =
-        std::string("Shapes for output '%") + v->debugName() + "' are unknown";
+    std::string msg = std::string("Shapes for output '%") + v->displayName() +
+        "' are unknown";
     throw malformed_input(msg);
   }
 
@@ -3223,7 +3223,7 @@ void TensorExprKernel::bindConstant(const torch::jit::Value* v) {
   }
 
   const Buf* buf = new Buf(
-      "const_" + v->debugName(),
+      "const_" + v->displayName(),
       ExprHandleVectorToExprVector(te_sizes),
       ToDtype(static_cast<ScalarType>(*tt->scalarType())));
 

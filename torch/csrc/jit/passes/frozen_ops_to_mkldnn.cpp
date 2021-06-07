@@ -535,7 +535,7 @@ void replaceInputWithMKLDNNTensor(Node* n, size_t index) {
       createConstantMKLDNNTensorOp(n->owningGraph(), mkldnn_tensor)
           ->insertBefore(n)
           ->output();
-  mkldnn_tensor_value->setDebugName(input->debugName() + "_mkldnn");
+  mkldnn_tensor_value->setDebugName(input->displayName() + "_mkldnn");
   n->replaceInputWith(input, mkldnn_tensor_value);
 }
 
@@ -548,7 +548,7 @@ void replaceInputWithMKLDNNTensor(
       createConstantMKLDNNTensorOp(n->owningGraph(), mkldnn_tensor)
           ->insertBefore(n)
           ->output();
-  mkldnn_tensor_value->setDebugName(input->debugName() + "_mkldnn");
+  mkldnn_tensor_value->setDebugName(input->displayName() + "_mkldnn");
   n->replaceInputWith(input, mkldnn_tensor_value);
 }
 

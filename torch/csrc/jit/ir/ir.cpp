@@ -40,7 +40,7 @@ constexpr topo_position_t kMidPoint = 0;
 constexpr topo_position_t kAppendInterval = 1099511627776ULL /* 2^40 */;
 
 void printValueRef(std::ostream& out, const Value* n) {
-  out << "%" << n->debugName();
+  out << "%" << n->displayName();
 }
 
 bool isNumber(c10::string_view str) {
@@ -715,7 +715,7 @@ std::shared_ptr<Graph> Graph::copy() {
   auto new_g = std::make_shared<Graph>();
   auto env = [](Value* v) -> Value* {
     AT_ERROR(
-        "Graph::copy() encountered a use of a value " + v->debugName() +
+        "Graph::copy() encountered a use of a value " + v->displayName() +
         " not in scope. Run lint!");
   };
   new_g->block()->cloneFrom(this->block(), env);
@@ -767,16 +767,7 @@ bool Value::mustNotBeNone() const {
 }
 
 std::string Value::debugNameBase() const {
-  std::string name = debugName();
-  std::string name_base = name;
-  auto last_dot_pos = name.find_last_of('.');
-  if (last_dot_pos != std::string::npos && last_dot_pos + 1 != name.size()) {
-    if (name.find_first_not_of("0123456789", last_dot_pos + 1) ==
-        std::string::npos) {
-      name_base = name.substr(0, last_dot_pos);
-    }
-  }
-  return name_base;
+  return unique_name_;
 }
 
 bool Value::isValidName(const std::string& name) {
@@ -798,62 +789,23 @@ Value* Value::setDebugName(const std::string& name) {
     throw std::runtime_error("Invalid name: '" + name + "'");
   }
 
-  auto& names = node()->owningGraph()->unique_names_;
-
-  // clear any old name from the map
-  if (hasDebugName()) {
-    names.erase(unique_name_);
-    unique_name_ = "";
-  }
-
-  // allow "" to clear the uniquename
-  if (name == "") {
-    return this;
-  }
-
-  // if someone else has this name, then rename the other value
-  auto old_owner_of_name = names.find(name);
-  if (old_owner_of_name != names.end()) {
-    size_t suffix = 1;
-    std::string name_base = name;
-    auto last_dot_pos = name.find_last_of('.');
-    if (last_dot_pos != std::string::npos && last_dot_pos + 1 != name.size()) {
-      if (name.find_first_not_of("0123456789", last_dot_pos + 1) ==
-          std::string::npos) {
-        suffix = c10::stoll(name.substr(last_dot_pos + 1));
-        name_base = name.substr(0, last_dot_pos);
-      }
-    }
-
-    auto& names_suffixes = node()->owningGraph()->name_base_suffix_;
-    auto it = names_suffixes.find(name_base);
-    if (it != names_suffixes.end()) {
-      suffix = std::max(suffix, it->second + 1);
-    }
-
-    // Verify that new name is not used and find next usable name in case
-    // suffix is used.
-    std::string replacement_name;
-    do {
-      std::stringstream ss;
-      ss << name_base << "." << suffix++;
-      replacement_name = ss.str();
-    } while (names.count(replacement_name) > 0);
-
-    names_suffixes[name_base] = suffix;
-
-    old_owner_of_name->second->setDebugName(replacement_name);
-  }
-
-  names[name] = this;
   unique_name_ = name;
   return this;
+}
+
+std::string Value::displayName() const {
+  auto id = std::to_string(unique());
+  if (hasDebugName()) {
+    return unique_name_ + "_" + id;
+  }
+
+  return id;
 }
 
 Value* Value::copyMetadata(Value* from) {
   setType(from->type());
   if (from->hasDebugName()) {
-    setDebugName(from->debugName());
+    setDebugName(from->debugNameBase());
   }
   return this;
 }
@@ -2113,7 +2065,7 @@ std::vector<Value*> inlineCallTo(
   AT_ASSERT(new_outputs.size() == old_outputs.size());
   for (size_t i = 0; i < old_outputs.size(); ++i) {
     if (old_outputs[i]->hasDebugName()) {
-      new_outputs[i]->setDebugName(old_outputs[i]->debugName());
+      new_outputs[i]->setDebugName(old_outputs[i]->debugNameBase());
     }
     old_outputs[i]->replaceAllUsesWith(new_outputs[i]);
   }
